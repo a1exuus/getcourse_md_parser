@@ -1,0 +1,184 @@
+{
+  "cookies": [
+    {
+      "name": "x-chatium-unique-id",
+      "value": "web-k5fszGVd3L2RPFdxePs5s3ORxkBL2f4d",
+      "domain": "buro20.ru",
+      "path": "/",
+      "expires": 1808310021.042822,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "x-chtm-uid",
+      "value": "TGvwJprqMRg7QC0PzXzI0SqrUH0P95E4",
+      "domain": "buro20.ru",
+      "path": "/",
+      "expires": 1805377885.209207,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "PHPSESSID5",
+      "value": "16f5137d98dedc762ebb9aaaaad4ae37",
+      "domain": ".buro20.ru",
+      "path": "/",
+      "expires": 1776428442.012417,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "_csrf",
+      "value": "NSBuQOfOizPXPFKfK_o-SU4hiQ18cfnu",
+      "domain": "buro20.ru",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "gc_visitor_849911",
+      "value": "%7B%22id%22%3A8840583488%2C%22sfix%22%3A1%7D",
+      "domain": "buro20.ru",
+      "path": "/",
+      "expires": 1805377885.211171,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "dd_bdfhyr",
+      "value": "e47a02496e8865880c918e2324b8b5be",
+      "domain": "buro20.ru",
+      "path": "/",
+      "expires": 1773928285.262259,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "x-chtm-uid-sid",
+      "value": "0XUHdBQyMqpeH5EorTTWglVpFXeEZu1T:1773841833180",
+      "domain": "buro20.ru",
+      "path": "/",
+      "expires": 1773843685.209284,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "gc_visit_849911",
+      "value": "%7B%22id%22%3A15169810814%2C%22sid%22%3A9186757972%7D",
+      "domain": "buro20.ru",
+      "path": "/",
+      "expires": 1773843680.479329,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "email_token2",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IldEY1J0dlBOUGkyM2FMSXZ6TDEwODQ5OTEiLCJpYXQiOjE3NzM4NDE4MzMsImV4cCI6MTc3MzkyODI5M30.lb3-C7Ei9mRVz078FnWnGi5EFzjkpstCXIuqlnZgsrA",
+      "domain": "buro20.ru",
+      "path": "/",
+      "expires": 1773928280.583,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "gc_counter_849911",
+      "value": "%7B%22id%22%3A9186757972%2C%22last_activity%22%3A%222026-03-18%2016%3A50%3A37%22%2C%22user_id%22%3A492984604%2C%22utm_id%22%3Anull%2C%22partner_code_id%22%3Anull%2C%22ad_offer_id%22%3Anull%2C%22fuid%22%3Anull%2C%22fpid%22%3Anull%2C%22city_id%22%3Anull%7D",
+      "domain": "buro20.ru",
+      "path": "/",
+      "expires": 1776433885.211103,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://buro20.ru",
+      "localStorage": [
+        {
+          "name": "tusSupport",
+          "value": "null"
+        },
+        {
+          "name": "visitor",
+          "value": "{\"id\":8840583488,\"sfix\":1}"
+        },
+        {
+          "name": "visit",
+          "value": "{\"id\":15169810814,\"sid\":9186757972}"
+        },
+        {
+          "name": "session",
+          "value": "{\"id\":9186757972,\"last_activity\":\"2026-03-18 16:50:37\",\"user_id\":492984604,\"utm_id\":null}"
+        },
+        {
+          "name": "hash",
+          "value": "5d23cd4e124fe73a9e104908fa1271f2"
+        }
+      ]
+    }
+  ],
+  "modules": {
+    "933928042": {
+      "lessons": {
+        "340313845": [
+          340313845,
+          340313846,
+          340313847,
+          340313848,
+          340313849,
+          340313850,
+          340313851,
+          340313852,
+          340313853,
+          340313854,
+          340313855,
+          340313856,
+          340313857
+        ],
+        "340313846": [
+          340313846,
+          340313847,
+          340313848,
+          340313849,
+          340313850
+        ],
+        "340313847": [
+          340313847,
+          340313848,
+          340313849,
+          340313850,
+          340313851,
+          340313852,
+          340313853,
+          340313854,
+          340313855,
+          340313856,
+          340313857
+        ],
+        "340313848": [
+          340313848,
+          340313849
+        ]
+      }
+    },
+    "teach-control-stream-view-id-933928042-933928042": {
+      "lessons": {
+        "339872504": {
+          "title": "Описание просмотрено",
+          "steps_saved": 1
+        }
+      }
+    }
+  }
+}

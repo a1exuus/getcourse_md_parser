@@ -93,30 +93,122 @@ def step_title_from_soup(soup: BeautifulSoup):
     return None
 
 
+def collapse_headings_to_h1(md_text: str) -> str:
+    """
+    Привести ВСЕ заголовки к виду '# Заголовок'.
+    Также обрабатывает setext-style:
+        Title
+        -----
+    и превращает в '# Title'.
+    """
+    if not md_text:
+        return md_text
+
+    # 1) setext-style: lines like "Title\n=====" или "Title\n-----" -> "# Title"
+    md_text = re.sub(r'(?m)^(?P<h>.+?)\n=+\s*$', r'# \g<h>', md_text)
+    md_text = re.sub(r'(?m)^(?P<h>.+?)\n-+\s*$', r'# \g<h>', md_text)
+
+    # 2) ATX-style: заменить любую последовательность из 1..6 # в начале строки на ровно один '#'
+    md_text = re.sub(r'(?m)^[ \t]*#{1,6}[ \t]*', '# ', md_text)
+
+    # 3) убираем лишние пробелы у заголовков (например " #   Title" -> "# Title")
+    md_text = re.sub(r'(?m)^#\s+', '# ', md_text)
+
+    return md_text
+
+
+def fix_bold_headings_in_md(md_text: str) -> str:
+    """
+    🔥 ЗАМЕНЯЕТ **Цель**, **Необходимо** и т.п. на # заголовки.
+    Самый надёжный способ — постобработка уже готового Markdown.
+    """
+    headings = [
+        'Цель',
+        'Необходимо',
+        'Необходимо:'
+        'Как проверить',
+        'Что понадобится',
+        'Задача',
+        'Важно',
+        'Примечание',
+        'Результат',
+        'Критерии',
+        'Шаг',
+    ]
+    
+    for title in headings:
+        # Заменяем строки вида "**Цель**" или "** Цель **" в начале строки
+        # Вариант 1: **Текст** в отдельной строке
+        md_text = re.sub(
+            rf'(?m)^\s*\*\*\s*{re.escape(title)}\s*\*\*\s*$',
+            f'# {title}',
+            md_text
+        )
+        # Вариант 2: __Текст__ (альтернативный синтаксис жирного)
+        md_text = re.sub(
+            rf'(?m)^\s*__\s*{re.escape(title)}\s*__\s*$',
+            f'# {title}',
+            md_text
+        )
+    
+    return md_text
+
+
+def promote_pseudo_headings(block, soup):
+    """
+    Находит элементы с текстом заголовков и заменяет их на <h2>.
+    Используется как дополнительный метод, если постобработка Markdown не сработала.
+    """
+    heading_keywords = ['Цель', 'Необходимо', 'Как проверить', 'Что понадобится']
+    
+    for elem in block.find_all(string=True):
+        text = elem.strip()
+        if text in heading_keywords:
+            h2 = soup.new_tag('h2')
+            h2.string = text
+            if elem.parent and elem.parent.name in ['p', 'span', 'div', 'b', 'strong']:
+                elem.parent.replace_with(h2)
+            else:
+                elem.replace_with(h2)
+    return block
+
+
 def page_blocks_to_md(soup: BeautifulSoup):
-    # ищем блоки контента, преобразуем в markdown (без картинок)
+    """
+    Преобразует HTML-блоки в Markdown.
+    🔥 Использует постобработку для замены **заголовков** на # заголовки.
+    """
     blocks = soup.select(".lite-block-live-wrapper")
     if not blocks:
-        # fallback-варианты
         candidate = soup.select_one(".lesson-content") or soup.select_one(".lesson-body") or soup.select_one(".content")
         if candidate:
             blocks = [candidate]
+    
     md_parts = []
     for block in blocks:
-        # удалить теги <img> и заменять на пустую строку (нам не нужны картинки)
+        # Удаляем картинки
         for img in block.select("img"):
             img.decompose()
-        # преобразовать
+        
+        # 🔥 Дополнительно: промоутируем псевдо-заголовки в HTML (на всякий случай)
+        block = promote_pseudo_headings(block, soup)
+        
+        # Конвертируем в Markdown
         html = str(block)
         md = mdify(html, heading_style="ATX")
+        
         if md.strip():
+            # 🔥 ГЛАВНОЕ ИСПРАВЛЕНИЕ: заменяем **Цель** на # Цель
+            md = fix_bold_headings_in_md(md)
+            # Приводим все заголовки к уровню #
+            md = collapse_headings_to_h1(md)
             md_parts.append(md.strip())
+    
     return "\n\n".join(md_parts).strip()
 
 
 def find_first_step_on_lesson_page(soup: BeautifulSoup, base_url: str):
     # если страница — описание урока (список уроков), попробуем найти ссылку на первый шаг
-    # ищем список уроков .lesson-list a[href*='lesson/view']
     first = None
     for a in soup.select(".lesson-list a[href*='lesson/view']"):
         href = a.get("href")
@@ -188,7 +280,6 @@ def run():
             soup = BeautifulSoup(html, "html.parser")
 
             # Если попали на страницу-описание (не шаг) — пытаемся найти первый шаг
-            # Признак: нет .lite-block-live-wrapper и есть список уроков
             if not soup.select_one(".lite-block-live-wrapper"):
                 first_step = find_first_step_on_lesson_page(soup, start_url)
                 if first_step:
@@ -239,7 +330,7 @@ def run():
 
                 # получаем заголовок шага
                 stitle = step_title_from_soup(soup) or f"Step {step_no} ({step_id})"
-                st_slug = slugify(stitle)[:60]  # короткий slug
+                st_slug = slugify(stitle)[:60]
                 filename = f"{step_no:02d}_step_{step_no}_{step_id}_{st_slug}.md"
                 filepath = os.path.join(lesson_dir, filename)
 
@@ -249,6 +340,8 @@ def run():
                 if not md_body.strip():
                     txt = soup.get_text("\n", strip=True)
                     md_body = mdify(f"<div>{txt[:3000]}</div>", heading_style="ATX")
+                    md_body = fix_bold_headings_in_md(md_body)
+                    md_body = collapse_headings_to_h1(md_body)
 
                 # сохраняем отдельный md
                 with open(filepath, "w", encoding="utf-8") as fh:
