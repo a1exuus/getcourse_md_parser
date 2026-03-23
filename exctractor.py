@@ -30,7 +30,6 @@ def slugify(s: str) -> str:
     if not s:
         return ""
     s = s.strip()
-    # keep unicode letters, replace non-word with dash
     s = re.sub(r"[^\w\s\-]", "", s, flags=re.UNICODE)
     s = re.sub(r"[\s_]+", "-", s)
     s = s.strip("-").lower()
@@ -65,15 +64,12 @@ def extract_id_from_url(url: str) -> str:
 
 
 def get_next_step_link_from_soup(soup: BeautifulSoup):
-    # 1) точные ссылки с текстом "Следующий" или "Следующий урок"
     a = soup.find("a", string=lambda t: t and "следующ" in t.lower())
     if a and a.get("href"):
         return a["href"]
-    # 2) ссылки, где в тексте встречается "след" и href содержит lesson/view
     for a in soup.select("a[href*='lesson/view']"):
         if "след" in (a.get_text(" ", strip=True) or "").lower() or "next" in (a.get_text(" ", strip=True) or "").lower():
             return a["href"]
-    # 3) другие варианты: кнопки с иконкой стрелки
     for a in soup.select("a[href*='lesson/view']"):
         if a.select_one(".fa-angle-right") or a.select_one(".lucide-arrow-right") or "next" in (a.get("aria-label") or "").lower():
             return a["href"]
@@ -81,12 +77,10 @@ def get_next_step_link_from_soup(soup: BeautifulSoup):
 
 
 def step_title_from_soup(soup: BeautifulSoup):
-    # несколько вариантов, берём первое подходящее
     for sel in [".lesson-title-value", "h2.lesson-title-value", ".link.title", ".lite-block-live-wrapper h2", "h1", "h2"]:
         el = soup.select_one(sel)
         if el and el.get_text(strip=True):
             return el.get_text(strip=True)
-    # fallback: meta title
     t = soup.title.string if soup.title else None
     if t:
         return t.strip()
@@ -94,57 +88,34 @@ def step_title_from_soup(soup: BeautifulSoup):
 
 
 def collapse_headings_to_h1(md_text: str) -> str:
-    """
-    Привести ВСЕ заголовки к виду '# Заголовок'.
-    Также обрабатывает setext-style:
-        Title
-        -----
-    и превращает в '# Title'.
-    """
+    """Привести ВСЕ заголовки к виду '# Заголовок'."""
     if not md_text:
         return md_text
 
-    # 1) setext-style: lines like "Title\n=====" или "Title\n-----" -> "# Title"
     md_text = re.sub(r'(?m)^(?P<h>.+?)\n=+\s*$', r'# \g<h>', md_text)
     md_text = re.sub(r'(?m)^(?P<h>.+?)\n-+\s*$', r'# \g<h>', md_text)
-
-    # 2) ATX-style: заменить любую последовательность из 1..6 # в начале строки на ровно один '#'
     md_text = re.sub(r'(?m)^[ \t]*#{1,6}[ \t]*', '# ', md_text)
-
-    # 3) убираем лишние пробелы у заголовков (например " #   Title" -> "# Title")
     md_text = re.sub(r'(?m)^#\s+', '# ', md_text)
 
     return md_text
 
 
 def fix_bold_headings_in_md(md_text: str) -> str:
-    """
-    🔥 ЗАМЕНЯЕТ **Цель**, **Необходимо** и т.п. на # заголовки.
-    Самый надёжный способ — постобработка уже готового Markdown.
-    """
+    """ЗАМЕНЯЕТ **Цель**, **Необходимо** и т.п. на # заголовки."""
     headings = [
         'Цель',
         'Необходимо',
-        'Необходимо:'
         'Как проверить',
         'Что понадобится',
-        'Задача',
-        'Важно',
-        'Примечание',
-        'Результат',
-        'Критерии',
-        'Шаг',
+        'Необходимо:',
     ]
-    
+
     for title in headings:
-        # Заменяем строки вида "**Цель**" или "** Цель **" в начале строки
-        # Вариант 1: **Текст** в отдельной строке
         md_text = re.sub(
             rf'(?m)^\s*\*\*\s*{re.escape(title)}\s*\*\*\s*$',
             f'# {title}',
             md_text
         )
-        # Вариант 2: __Текст__ (альтернативный синтаксис жирного)
         md_text = re.sub(
             rf'(?m)^\s*__\s*{re.escape(title)}\s*__\s*$',
             f'# {title}',
@@ -154,11 +125,64 @@ def fix_bold_headings_in_md(md_text: str) -> str:
     return md_text
 
 
+def fix_checkboxes_in_md(md_text: str) -> str:
+    """
+    🔥 Исправляет чекбоксы в разделе 'Как проверить'.
+    Превращает обычные списки в чекбоксы вида '- [ ]'.
+    """
+    if not md_text:
+        return md_text
+    
+    lines = md_text.split('\n')
+    result = []
+    in_check_section = False
+    
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        
+        # Проверяем, начали ли мы раздел "Как проверить"
+        if stripped.startswith('# Как проверить'):
+            in_check_section = True
+            result.append(line)
+            continue
+        
+        # Если встретили новый заголовок — выходим из режима чекбоксов
+        if stripped.startswith('#') and not stripped.startswith('# Как проверить'):
+            in_check_section = False
+            result.append(line)
+            continue
+        
+        # Если мы в разделе "Как проверить" и видим элемент списка
+        if in_check_section:
+            # Вариант 1: уже есть чекбокс (оставляем как есть)
+            if re.match(r'^\s*-\s*\[[ x]\]\s*', line):
+                result.append(line)
+                continue
+            
+            # Вариант 2: обычный список "- текст" — превращаем в чекбокс
+            if re.match(r'^\s*-\s+', line):
+                # Извлекаем текст после "- "
+                match = re.match(r'^(\s*)-\s+(.+)$', line)
+                if match:
+                    indent = match.group(1)
+                    text = match.group(2)
+                    result.append(f'{indent}- [ ] {text}')
+                    continue
+            
+            # Вариант 3: строка без "- " но выглядит как пункт проверки (начинается с буквы/цифры)
+            # Только если предыдущая строка была элементом списка
+            if stripped and not stripped.startswith('#') and result and result[-1].strip().startswith('-'):
+                # Это продолжение предыдущего пункта — оставляем как есть
+                result.append(line)
+                continue
+        
+        result.append(line)
+    
+    return '\n'.join(result)
+
+
 def promote_pseudo_headings(block, soup):
-    """
-    Находит элементы с текстом заголовков и заменяет их на <h2>.
-    Используется как дополнительный метод, если постобработка Markdown не сработала.
-    """
+    """Находит элементы с текстом заголовков и заменяет их на <h2>."""
     heading_keywords = ['Цель', 'Необходимо', 'Как проверить', 'Что понадобится']
     
     for elem in block.find_all(string=True):
@@ -173,11 +197,43 @@ def promote_pseudo_headings(block, soup):
     return block
 
 
+def extract_checkboxes_from_html(block, soup):
+    """
+    🔥 Находит <input type="checkbox"> в HTML и заменяет их на текст [ ].
+    Это помогает markdownify правильно обработать чекбоксы.
+    """
+    for input_tag in block.select('input[type="checkbox"]'):
+        # Проверяем, есть ли рядом текст (в label или следующем sibling)
+        parent = input_tag.parent
+        if parent and parent.name == 'label':
+            # Текст внутри label — заменяем input на [ ]
+            input_tag.replace_with('[ ] ')
+        else:
+            # Ищем следующий текстовый узел
+            next_sibling = input_tag.next_sibling
+            if next_sibling and hasattr(next_sibling, 'strip'):
+                input_tag.replace_with(f'[ ] {next_sibling}')
+            else:
+                input_tag.replace_with('[ ] ')
+    
+    # Также обрабатываем <li> с классами типа "check-item", "task-item" и т.п.
+    for li in block.select('li'):
+        li_classes = ' '.join(li.get('class', []))
+        if any(kw in li_classes.lower() for kw in ['check', 'task', 'todo']):
+            # Если внутри есть текст но нет input — добавляем [ ]
+            text = li.get_text(strip=True)
+            if text and not text.startswith('[ ]') and not text.startswith('- [ ]'):
+                # Очищаем и добавляем чекбокс
+                for child in li.children:
+                    if hasattr(child, 'extract') and child.name != 'input':
+                        child.extract()
+                li.insert(0, '[ ] ')
+    
+    return block
+
+
 def page_blocks_to_md(soup: BeautifulSoup):
-    """
-    Преобразует HTML-блоки в Markdown.
-    🔥 Использует постобработку для замены **заголовков** на # заголовки.
-    """
+    """Преобразует HTML-блоки в Markdown с поддержкой чекбоксов."""
     blocks = soup.select(".lite-block-live-wrapper")
     if not blocks:
         candidate = soup.select_one(".lesson-content") or soup.select_one(".lesson-body") or soup.select_one(".content")
@@ -190,7 +246,10 @@ def page_blocks_to_md(soup: BeautifulSoup):
         for img in block.select("img"):
             img.decompose()
         
-        # 🔥 Дополнительно: промоутируем псевдо-заголовки в HTML (на всякий случай)
+        # 🔥 Извлекаем чекбоксы из HTML (заменяем <input> на [ ])
+        block = extract_checkboxes_from_html(block, soup)
+        
+        # 🔥 Промоутируем псевдо-заголовки в HTML
         block = promote_pseudo_headings(block, soup)
         
         # Конвертируем в Markdown
@@ -198,8 +257,10 @@ def page_blocks_to_md(soup: BeautifulSoup):
         md = mdify(html, heading_style="ATX")
         
         if md.strip():
-            # 🔥 ГЛАВНОЕ ИСПРАВЛЕНИЕ: заменяем **Цель** на # Цель
+            # 🔥 ЗАМЕНЯЕМ **Цель** на # Цель
             md = fix_bold_headings_in_md(md)
+            # 🔥 Исправляем чекбоксы в разделе "Как проверить"
+            md = fix_checkboxes_in_md(md)
             # Приводим все заголовки к уровню #
             md = collapse_headings_to_h1(md)
             md_parts.append(md.strip())
@@ -208,7 +269,6 @@ def page_blocks_to_md(soup: BeautifulSoup):
 
 
 def find_first_step_on_lesson_page(soup: BeautifulSoup, base_url: str):
-    # если страница — описание урока (список уроков), попробуем найти ссылку на первый шаг
     first = None
     for a in soup.select(".lesson-list a[href*='lesson/view']"):
         href = a.get("href")
@@ -219,7 +279,6 @@ def find_first_step_on_lesson_page(soup: BeautifulSoup, base_url: str):
         if first.startswith("/"):
             return urljoin(BASE, first)
         return urljoin(base_url, first)
-    # fallback: общий поиск ссылок на lesson/view с data-lesson-id
     for a in soup.select("a[href*='lesson/view?id=']"):
         href = a.get("href")
         if href:
@@ -242,7 +301,6 @@ def run():
 
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=False)
-        # попытаемся восстановить auth_state
         if os.path.exists(AUTH_STATE):
             context = browser.new_context(storage_state=AUTH_STATE)
             print("Используем auth_state.json для сессии.")
@@ -251,7 +309,6 @@ def run():
         page = context.new_page()
         page.set_extra_http_headers({"User-Agent": USER_AGENT})
 
-        # если нет auth_state — попросим зайти вручную и сохраним
         if not os.path.exists(AUTH_STATE):
             page.goto(BASE, timeout=30000)
             print("Открыл браузер. Если нужно, залогинься вручную в окне браузера.")
@@ -279,7 +336,6 @@ def run():
             html = page.content()
             soup = BeautifulSoup(html, "html.parser")
 
-            # Если попали на страницу-описание (не шаг) — пытаемся найти первый шаг
             if not soup.select_one(".lite-block-live-wrapper"):
                 first_step = find_first_step_on_lesson_page(soup, start_url)
                 if first_step:
@@ -296,7 +352,6 @@ def run():
                     print("  Не найдено содержимого шага или ссылка на первый шаг — пропускаю.")
                     continue
 
-            # Получаем заголовок урока для имени папки
             lesson_title = soup.select_one(".lesson-title-value") or soup.select_one("h2.lesson-title-value") or soup.select_one(".link.title") or soup.select_one("h1")
             lesson_title_text = lesson_title.get_text(strip=True) if lesson_title else f"lesson_{extract_id_from_url(start_url)}"
             lesson_slug = slugify(lesson_title_text)
@@ -328,22 +383,19 @@ def run():
                 html = page.content()
                 soup = BeautifulSoup(html, "html.parser")
 
-                # получаем заголовок шага
                 stitle = step_title_from_soup(soup) or f"Step {step_no} ({step_id})"
                 st_slug = slugify(stitle)[:60]
                 filename = f"{step_no:02d}_step_{step_no}_{step_id}_{st_slug}.md"
                 filepath = os.path.join(lesson_dir, filename)
 
-                # парсим блоки в md (без картинок)
                 md_body = page_blocks_to_md(soup)
-                # если нет контента — попробуем взять общий текст страницы
                 if not md_body.strip():
                     txt = soup.get_text("\n", strip=True)
                     md_body = mdify(f"<div>{txt[:3000]}</div>", heading_style="ATX")
                     md_body = fix_bold_headings_in_md(md_body)
+                    md_body = fix_checkboxes_in_md(md_body)
                     md_body = collapse_headings_to_h1(md_body)
 
-                # сохраняем отдельный md
                 with open(filepath, "w", encoding="utf-8") as fh:
                     fh.write(f"# {stitle}\n\n")
                     fh.write(md_body + "\n")
@@ -351,12 +403,10 @@ def run():
 
                 combined.append(f"# {stitle}\n\n{md_body}\n\n---\n\n")
 
-                # ищем ссылку Next
                 next_href = get_next_step_link_from_soup(soup)
                 if not next_href:
                     print("    -> Кнопка 'Следующий' не найдена — конец урока.")
                     break
-                # нормализуем
                 if next_href.startswith("/"):
                     next_url = urljoin(BASE, next_href)
                 else:
@@ -367,7 +417,6 @@ def run():
                 cur_url = next_url
                 time.sleep(0.25)
 
-            # сохраняем общий lesson.md
             lesson_md_path = os.path.join(lesson_dir, "lesson.md")
             with open(lesson_md_path, "w", encoding="utf-8") as fh:
                 fh.write(f"# {lesson_title_text}\n\n")
