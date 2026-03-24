@@ -127,7 +127,7 @@ def fix_bold_headings_in_md(md_text: str) -> str:
 
 def fix_checkboxes_in_md(md_text: str) -> str:
     """
-    🔥 Исправляет чекбоксы в разделе 'Как проверить'.
+    Исправляет чекбоксы в разделе 'Как проверить'.
     Превращает обычные списки в чекбоксы вида '- [ ]'.
     """
     if not md_text:
@@ -152,33 +152,34 @@ def fix_checkboxes_in_md(md_text: str) -> str:
             result.append(line)
             continue
         
-        # Если мы в разделе "Как проверить" и видим элемент списка
         if in_check_section:
-            # Вариант 1: уже есть чекбокс (оставляем как есть)
+            # Уже есть чекбокс
             if re.match(r'^\s*-\s*\[[ x]\]\s*', line):
                 result.append(line)
                 continue
             
-            # Вариант 2: обычный список "- текст" — превращаем в чекбокс
+            # Обычный список -> чекбокс
             if re.match(r'^\s*-\s+', line):
-                # Извлекаем текст после "- "
                 match = re.match(r'^(\s*)-\s+(.+)$', line)
                 if match:
                     indent = match.group(1)
                     text = match.group(2)
                     result.append(f'{indent}- [ ] {text}')
                     continue
-            
-            # Вариант 3: строка без "- " но выглядит как пункт проверки (начинается с буквы/цифры)
-            # Только если предыдущая строка была элементом списка
-            if stripped and not stripped.startswith('#') and result and result[-1].strip().startswith('-'):
-                # Это продолжение предыдущего пункта — оставляем как есть
-                result.append(line)
-                continue
-        
+
         result.append(line)
     
-    return '\n'.join(result)
+    # 🔥 ВОТ ЗДЕСЬ добавляется второй фикс
+    md_text = '\n'.join(result)
+
+    # превращаем строки вида "[ ] текст" в "- [ ] текст"
+    md_text = re.sub(
+        r'(?m)^\s*\[\s*\]\s+',
+        '- [ ] ',
+        md_text
+    )
+
+    return md_text
 
 
 def promote_pseudo_headings(block, soup):
@@ -199,36 +200,36 @@ def promote_pseudo_headings(block, soup):
 
 def extract_checkboxes_from_html(block, soup):
     """
-    🔥 Находит <input type="checkbox"> в HTML и заменяет их на текст [ ].
-    Это помогает markdownify правильно обработать чекбоксы.
+    Исправленная версия:
+    - убирает дубли текста
+    - делает нормальный формат: - [ ] текст
     """
+
     for input_tag in block.select('input[type="checkbox"]'):
-        # Проверяем, есть ли рядом текст (в label или следующем sibling)
+        text = ""
+
         parent = input_tag.parent
+
+        # Случай 1: <label>
         if parent and parent.name == 'label':
-            # Текст внутри label — заменяем input на [ ]
-            input_tag.replace_with('[ ] ')
-        else:
-            # Ищем следующий текстовый узел
-            next_sibling = input_tag.next_sibling
-            if next_sibling and hasattr(next_sibling, 'strip'):
-                input_tag.replace_with(f'[ ] {next_sibling}')
+            text = parent.get_text(" ", strip=True)
+            parent.replace_with(f"[ ] {text}")
+            continue
+
+        # Случай 2: обычный input + текст рядом
+        next_sibling = input_tag.next_sibling
+
+        if next_sibling:
+            # если это текст
+            if isinstance(next_sibling, str):
+                text = next_sibling.strip()
+                next_sibling.extract()  # 💀 ВАЖНО — убираем дубликат
             else:
-                input_tag.replace_with('[ ] ')
-    
-    # Также обрабатываем <li> с классами типа "check-item", "task-item" и т.п.
-    for li in block.select('li'):
-        li_classes = ' '.join(li.get('class', []))
-        if any(kw in li_classes.lower() for kw in ['check', 'task', 'todo']):
-            # Если внутри есть текст но нет input — добавляем [ ]
-            text = li.get_text(strip=True)
-            if text and not text.startswith('[ ]') and not text.startswith('- [ ]'):
-                # Очищаем и добавляем чекбокс
-                for child in li.children:
-                    if hasattr(child, 'extract') and child.name != 'input':
-                        child.extract()
-                li.insert(0, '[ ] ')
-    
+                text = next_sibling.get_text(" ", strip=True)
+                next_sibling.extract()
+
+        input_tag.replace_with(f"[ ] {text}")
+
     return block
 
 
